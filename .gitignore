@@ -1,0 +1,92 @@
+# =========================
+# Rust
+# =========================
+
+# Cargo build output
+/target/
+
+# Rustfmt backups
+**/*.rs.bk
+
+# Optional build dirs
+debug/
+release/
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+
+
+# =========================
+# Environment / Secrets
+# =========================
+
+.env
+.env.*
+!.env.example
+
+*.key
+*.pem
+*.crt
+
+
+# =========================
+# Claude / AI tooling
+# =========================
+
+.claude/
+.claude-cache/
+.claude-history/
+.claude-settings.json
+
+anthropic.env
+anthropic.key
+
+prompts/
+prompt-history/
+conversation-history/
+
+
+# =========================
+# Cargo / Tooling
+# =========================
+
+.cargo/
+.rust-analyzer/
+
+
+# =========================
+# Editors / IDE
+# =========================
+
+.vscode/
+.idea/
+*.code-workspace
+*.iml
+
+
+# =========================
+# OS Files
+# =========================
+
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+
+# =========================
+# Logs / temp
+# =========================
+
+*.log
+*.tmp
+*.temp
+
+
+# =========================
+# Git extras
+# =========================
+
+*.orig
+*.rej

@@ -1,0 +1,22 @@
+[package]
+name = "pinger"
+version = "0.1.0"
+edition = "2021"
+description = "Real-time multi-host ping monitor — Windows GUI"
+
+[[bin]]
+name = "pinger"
+path = "src/main.rs"
+
+[dependencies]
+eframe      = "0.27"
+egui        = "0.27"
+egui_plot   = "0.27"
+tokio       = { version = "1", features = ["full"] }
+surge-ping  = "0.8"
+chrono      = "0.4"
+
+[profile.release]
+opt-level   = 3
+lto         = true
+strip       = true
