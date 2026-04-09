@@ -453,6 +453,7 @@ struct MultiPingApp {
     sla_loss_pct:   f64,
 
     // Report metadata
+    project_number:   String,
     network_location: String,
     report_comment:   String,
 
@@ -478,6 +479,7 @@ impl MultiPingApp {
             sweep_input:    String::new(),
             sla_rtt_ms:        50.0,
             sla_loss_pct:      1.0,
+            project_number:    String::new(),
             network_location:  String::new(),
             report_comment:    String::new(),
             log_filter:     String::new(),
@@ -620,6 +622,8 @@ impl MultiPingApp {
         }
 
         let cs_svg  = generate_candlestick_svg(&hosts);
+        let proj_str = if self.project_number.is_empty() { "—".into() }
+                       else { xml_esc(&self.project_number) };
         let loc_str = if self.network_location.is_empty() { "—".into() }
                       else { xml_esc(&self.network_location) };
         let cmt_str = if self.report_comment.is_empty() { "—".into() }
@@ -744,6 +748,10 @@ tr:nth-child(even) td {{ background: #fafafa; }}
 
 <div class="meta-grid">
   <div class="meta-cell">
+    <div class="meta-label">Project Number</div>
+    <div class="meta-value">{proj}</div>
+  </div>
+  <div class="meta-cell">
     <div class="meta-label">Generated</div>
     <div class="meta-value">{dt}</div>
   </div>
@@ -805,12 +813,19 @@ tr:nth-child(even) td {{ background: #fafafa; }}
             n_hosts  = hosts.len(),
             sla_rtt  = self.sla_rtt_ms,
             sla_loss = self.sla_loss_pct,
+            proj     = proj_str,
             loc      = loc_str,
             cmt      = cmt_str,
             cs_svg   = cs_svg,
         );
 
-        let fname = format!("pinger_report_{}.html", now_file_ts());
+        let date_str = chrono::Local::now().format("%Y%m%d").to_string();
+        let proj_prefix = if self.project_number.is_empty() {
+            "000".to_string()
+        } else {
+            self.project_number.clone()
+        };
+        let fname = format!("{proj_prefix}-REP-000 {date_str} Network Latency Report.html");
         match std::fs::write(&fname, &html) {
             Ok(_)  => {
                 self.status_bar = format!("✓ Report saved → {fname}");
@@ -820,6 +835,68 @@ tr:nth-child(even) td {{ background: #fafafa; }}
                     .spawn();
             }
             Err(e) => self.status_bar = format!("✕ Report failed: {e}"),
+        }
+    }
+
+    fn export_pdf(&mut self) {
+        let date_str = chrono::Local::now().format("%Y%m%d").to_string();
+        let proj_prefix = if self.project_number.is_empty() {
+            "000".to_string()
+        } else {
+            self.project_number.clone()
+        };
+        let html_fname = format!("{proj_prefix}-REP-000 {date_str} Network Latency Report.html");
+        let pdf_fname  = format!("{proj_prefix}-REP-000 {date_str} Network Latency Report.pdf");
+
+        // Check that an HTML report exists (or generate it silently)
+        if !std::path::Path::new(&html_fname).exists() {
+            self.export_report();
+            // export_report already updated status_bar; now fall through to PDF
+        }
+
+        // Try Edge (built-in on Windows 11), then Chrome, then Chromium
+        let candidates = [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ];
+
+        let abs_html = std::fs::canonicalize(&html_fname)
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| html_fname.clone());
+
+        let abs_pdf = {
+            let mut p = std::env::current_dir().unwrap_or_default();
+            p.push(&pdf_fname);
+            p.to_string_lossy().to_string()
+        };
+
+        let browser = candidates.iter().find(|p| std::path::Path::new(p).exists());
+        match browser {
+            Some(exe) => {
+                let result = std::process::Command::new(exe)
+                    .args([
+                        "--headless",
+                        "--disable-gpu",
+                        "--no-sandbox",
+                        &format!("--print-to-pdf={abs_pdf}"),
+                        &format!("file:///{abs_html}"),
+                    ])
+                    .status();
+                match result {
+                    Ok(s) if s.success() =>
+                        self.status_bar = format!("✓ PDF saved → {pdf_fname}"),
+                    Ok(s) =>
+                        self.status_bar = format!("✕ PDF export failed (exit {})", s.code().unwrap_or(-1)),
+                    Err(e) =>
+                        self.status_bar = format!("✕ PDF export error: {e}"),
+                }
+            }
+            None => {
+                self.status_bar =
+                    "✕ PDF export requires Edge or Chrome — neither found. HTML report saved instead.".into();
+            }
         }
     }
 }
@@ -961,6 +1038,9 @@ impl MultiPingApp {
                         if ui.button("📄  Generate HTML Report…").clicked() {
                             self.export_report(); ui.close_menu();
                         }
+                        if ui.button("🖨  Export PDF Report…").clicked() {
+                            self.export_pdf(); ui.close_menu();
+                        }
                     });
 
                     // ── Hosts ────────────────────────────────────────────────
@@ -1015,6 +1095,12 @@ impl MultiPingApp {
                         });
                         ui.separator();
                         ui.label(RichText::new("Report metadata").size(11.0).color(C::DIM));
+                        ui.horizontal(|ui| {
+                            ui.label(RichText::new("Project:").size(11.0));
+                            ui.add(egui::TextEdit::singleline(&mut self.project_number)
+                                .desired_width(120.0)
+                                .hint_text("e.g. 24001"));
+                        });
                         ui.horizontal(|ui| {
                             ui.label(RichText::new("Location:").size(11.0));
                             ui.add(egui::TextEdit::singleline(&mut self.network_location)
